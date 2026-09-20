@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Token Watch</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0b0e13">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Token Watch">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  :root{
+    --bg:#0b0e13;
+    --panel:#151a22;
+    --panel-2:#202731;
+    --line:#2d3541;
+    --line-strong:#3c4655;
+    --text:#f4f6f8;
+    --text-dim:#a5adba;
+    --ready:#55d6a3;
+    --waiting:#f4b84a;
+    --ready-glow:rgba(85,214,163,.18);
+    --waiting-glow:rgba(244,184,74,.14);
+    --danger:#f07d70;
+    --shadow:0 18px 50px rgba(0,0,0,.28);
+    --mono:'SFMono-Regular',Consolas,'Liberation Mono',monospace;
+    --sans:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    color-scheme:dark;
+  }
+  html{ background:var(--bg); }
+  body{
+    background:
+      radial-gradient(circle at 50% -10%, rgba(244,184,74,.09), transparent 34rem),
+      var(--bg);
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+    margin:0; padding:0;
+    color:var(--text);
+    font-family:var(--sans);
+    min-height:100vh;
+  }
+  *{box-sizing:border-box;}
+  button,input,select{ font:inherit; }
+  button:focus-visible,input:focus-visible,select:focus-visible{
+    outline:3px solid rgba(244,184,74,.28);
+    outline-offset:2px;
+    border-color:var(--waiting);
+  }
+  .wrap{
+    width:min(100%,680px);
+    margin:0 auto;
+    padding:clamp(24px,5vw,48px) 20px 72px;
+  }
+  header{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    margin-bottom:24px;
+    padding-bottom:20px;
+    border-bottom:1px solid rgba(255,255,255,.09);
+  }
+  h1{
+    font-size:clamp(1.45rem,4vw,1.75rem);
+    font-weight:720;
+    letter-spacing:-.035em;
+    margin:0;
+  }
+  .subhead{
+    margin-top:5px;
+    font-size:.82rem;
+    line-height:1.4;
+    color:var(--text-dim);
+  }
+  .add-btn{
+    min-height:42px;
+    padding:10px 16px;
+    border:1px solid rgba(244,184,74,.35);
+    border-radius:10px;
+    background:rgba(244,184,74,.1);
+    color:#ffd888;
+    cursor:pointer;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.05);
+    transition:transform .16s ease,background .16s ease,border-color .16s ease,box-shadow .16s ease;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .add-btn:hover{
+    background:rgba(244,184,74,.17);
+    border-color:rgba(244,184,74,.6);
+    box-shadow:0 8px 24px rgba(0,0,0,.16);
+    transform:translateY(-1px);
+  }
+  .add-btn:active{ transform:translateY(0) scale(.98); }
+  .empty{
+    text-align:center;
+    padding:64px 24px;
+    color:var(--text-dim);
+    font-size:0.9rem;
+    border:1px dashed var(--line-strong);
+    border-radius:16px;
+    background:rgba(21,26,34,.55);
+    line-height:1.6;
+  }
+  .card{
+    background:var(--panel);
+    border:1px solid rgba(255,255,255,.1);
+    border-radius:16px;
+    padding:20px;
+    margin-bottom:14px;
+    position:relative;
+    overflow:hidden;
+    box-shadow:0 8px 28px rgba(0,0,0,.16),inset 0 1px 0 rgba(255,255,255,.025);
+    animation:cardIn .3s cubic-bezier(.2,.75,.25,1) both;
+    transition:transform .2s ease,border-color .3s ease,background .3s ease,box-shadow .3s ease;
+  }
+  .card:hover{ transform:translateY(-1px); border-color:rgba(255,255,255,.16); }
+  .card::before{
+    content:'';
+    position:absolute;
+    inset:0 auto 0 0;
+    width:3px;
+    background:transparent;
+    transition:background .3s ease,box-shadow .3s ease;
+  }
+  .card.is-waiting{
+    border-color:rgba(244,184,74,.24);
+    background:linear-gradient(110deg,var(--waiting-glow),transparent 42%),var(--panel);
+  }
+  .card.is-waiting::before{ background:var(--waiting); }
+  .card.is-ready{
+    border-color:rgba(85,214,163,.4);
+    background:linear-gradient(110deg,var(--ready-glow),transparent 48%),var(--panel);
+    box-shadow:0 12px 34px rgba(0,0,0,.2),0 0 28px rgba(85,214,163,.06);
+  }
+  .card.is-ready::before{
+    background:var(--ready);
+    box-shadow:0 0 18px rgba(85,214,163,.42);
+  }
+  @keyframes cardIn{
+    from{ opacity:0; transform:translateY(8px); }
+    to{ opacity:1; transform:translateY(0); }
+  }
+  .row-top{
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:12px;
+  }
+  .id-block{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    min-width:0;
+  }
+  .icon{
+    display:grid;
+    place-items:center;
+    width:38px;
+    height:38px;
+    border:1px solid rgba(255,255,255,.08);
+    border-radius:11px;
+    background:rgba(255,255,255,.04);
+    font-size:1.18rem;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.05);
+    flex-shrink:0;
+  }
+  .name-block{ min-width:0; }
+  .name{
+    font-size:1rem;
+    font-weight:600;
+    line-height:1.35;
+    letter-spacing:-.01em;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .status-label{
+    font-size:.74rem;
+    color:var(--text-dim);
+    margin-top:3px;
+    font-weight:500;
+    letter-spacing:.01em;
+  }
+  .status-label.ready{ color:var(--ready); font-weight:650; }
+  .status-label.waiting{ color:var(--waiting); font-weight:650; }
+
+  .countdown{
+    font-family:var(--mono);
+    font-size:1.12rem;
+    font-weight:500;
+    font-variant-numeric:tabular-nums;
+    letter-spacing:-.015em;
+    flex-shrink:0;
+    margin-top:2px;
+  }
+  .countdown.ready{ color:var(--ready); text-shadow:0 0 18px rgba(85,214,163,.28); }
+  .countdown.waiting{ color:var(--waiting); }
+
+  .progress-track{
+    height:5px;
+    background:rgba(255,255,255,.07);
+    border-radius:99px;
+    margin-top:17px;
+    overflow:hidden;
+  }
+  .progress-fill{
+    height:100%;
+    position:relative;
+    border-radius:99px;
+    background:var(--waiting);
+    box-shadow:0 0 12px rgba(244,184,74,.22);
+    transition:width 1s linear,background .3s ease;
+  }
+  .card.is-ready .progress-fill{ background:var(--ready); width:100% !important; }
+
+  .controls{
+    display:flex;
+    align-items:center;
+    gap:7px;
+    margin-top:16px;
+    padding-top:15px;
+    border-top:1px solid rgba(255,255,255,.07);
+    flex-wrap:wrap;
+  }
+  .controls input[type="time"]{
+    background:rgba(255,255,255,.045);
+    border:1px solid rgba(255,255,255,.1);
+    color:var(--text);
+    border-radius:9px;
+    padding:7px 10px;
+    font-size:0.8rem;
+    font-family:var(--sans);
+    color-scheme:dark;
+    min-height:38px;
+  }
+  .preset-btn, .set-btn{
+    background:rgba(255,255,255,.045);
+    border:1px solid rgba(255,255,255,.1);
+    color:var(--text-dim);
+    font-size:0.78rem;
+    padding:7px 12px;
+    border-radius:9px;
+    cursor:pointer;
+    min-height:38px;
+    transition:background .15s ease, border-color .15s ease, color .15s ease, transform .15s ease;
+  }
+  .preset-btn:hover{ background:rgba(255,255,255,.08); color:var(--text); border-color:var(--line-strong); }
+  .set-btn{
+    color:#ffd888;
+    font-weight:500;
+    border-color:rgba(244,184,74,.3);
+    background:rgba(244,184,74,.09);
+  }
+  .set-btn:hover{ background:rgba(255,255,255,.08); color:var(--text); border-color:var(--line-strong); }
+
+  .notif-select{
+    background:rgba(255,255,255,.045);
+    border:1px solid rgba(255,255,255,.1);
+    color:var(--text-dim);
+    font-size:0.75rem;
+    padding:7px 28px 7px 10px;
+    border-radius:9px;
+    font-family:var(--sans);
+    cursor:pointer;
+    min-height:38px;
+    margin-left:auto;
+    max-width:148px;
+  }
+  .notif-select:hover{ background:rgba(255,255,255,.08); color:var(--text); border-color:var(--line-strong); }
+
+  .icon-btn{
+    display:grid;
+    place-items:center;
+    background:none;
+    border:none;
+    color:var(--text-dim);
+    cursor:pointer;
+    font-size:.86rem;
+    width:34px;
+    height:34px;
+    padding:0;
+    border-radius:9px;
+    transition:color 0.15s, background 0.15s;
+    flex-shrink:0;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .icon-btn:hover{ color:var(--danger); background:rgba(240,125,112,.12); }
+
+  .modal-overlay{
+    position:fixed; inset:0;
+    background:rgba(4,6,9,.78);
+    backdrop-filter:blur(8px);
+    -webkit-backdrop-filter:blur(8px);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    z-index:50;
+    padding:20px;
+  }
+  .modal-overlay.open{ display:flex; animation:overlayIn .16s ease-out; }
+  .modal{
+    background:linear-gradient(150deg,rgba(255,255,255,.035),transparent 40%),var(--panel);
+    border:1px solid rgba(255,255,255,.12);
+    border-radius:18px;
+    padding:24px;
+    width:100%;
+    max-width:390px;
+    box-shadow:var(--shadow),inset 0 1px 0 rgba(255,255,255,.04);
+  }
+  .modal h2{
+    font-size:1.15rem;
+    margin:0 0 20px;
+    letter-spacing:-.02em;
+  }
+  .field{ margin-bottom:17px; }
+  .field label{
+    display:block;
+    font-size:.76rem;
+    color:#c2c8d1;
+    font-weight:600;
+    margin-bottom:7px;
+  }
+  .field input, .field select{
+    width:100%;
+    background:rgba(255,255,255,.05);
+    border:1px solid rgba(255,255,255,.11);
+    color:var(--text);
+    border-radius:10px;
+    padding:10px 12px;
+    font-size:0.9rem;
+    font-family:var(--sans);
+    min-height:44px;
+  }
+  .icon-grid{
+    display:grid;
+    grid-template-columns:repeat(8,1fr);
+    gap:7px;
+  }
+  .icon-choice{
+    width:100%;
+    aspect-ratio:1;
+    display:flex; align-items:center; justify-content:center;
+    font-size:1.1rem;
+    background:rgba(255,255,255,.04);
+    border:1px solid rgba(255,255,255,.09);
+    border-radius:10px;
+    cursor:pointer;
+  }
+  .icon-choice.selected{
+    border-color:rgba(244,184,74,.75);
+    background:rgba(244,184,74,.14);
+    box-shadow:0 0 0 3px rgba(244,184,74,.08);
+  }
+  .modal-actions{
+    display:flex;
+    gap:10px;
+    margin-top:22px;
+  }
+  .modal-actions button{
+    flex:1;
+    min-height:44px;
+    padding:10px;
+    border-radius:10px;
+    font-size:0.85rem;
+    font-weight:500;
+    cursor:pointer;
+    border:1px solid rgba(255,255,255,.1);
+  }
+  .btn-cancel{ background:transparent; color:var(--text-dim); }
+  .btn-cancel:hover{ background:rgba(255,255,255,.06); color:var(--text); }
+  .btn-confirm{
+    border-color:var(--waiting);
+    background:linear-gradient(180deg,#ffc760,var(--waiting));
+    color:#241807;
+    font-weight:600;
+    box-shadow:0 8px 20px rgba(244,184,74,.15),inset 0 1px 0 rgba(255,255,255,.28);
+  }
+  .btn-confirm:hover{ background:linear-gradient(180deg,#ffd078,#f6bd52); }
+
+  .toast-flash{
+    position:fixed; inset:0;
+    background:radial-gradient(circle,var(--ready),rgba(85,214,163,.5));
+    opacity:0;
+    pointer-events:none;
+    z-index:100;
+  }
+  .toast-flash.go{ animation: screenFlash 0.6s ease-out; }
+  @keyframes screenFlash{
+    0%{ opacity:0; }
+    30%{ opacity:0.25; }
+    100%{ opacity:0; }
+  }
+
+  footer{
+    text-align:center;
+    color:#737c89;
+    font-size:0.72rem;
+    margin-top:34px;
+    line-height:1.5;
+  }
+
+  .card.pulse{
+    animation:readyArrival .8s cubic-bezier(.2,.8,.2,1) 3;
+  }
+  @keyframes readyArrival{
+    0%,100%{ transform:scale(1); box-shadow:0 12px 34px rgba(0,0,0,.2),0 0 0 0 rgba(85,214,163,0); }
+    45%{ transform:scale(1.012); box-shadow:0 12px 34px rgba(0,0,0,.2),0 0 0 8px rgba(85,214,163,.11),0 0 32px rgba(85,214,163,.12); }
+  }
+
+  @media (max-width:540px){
+    .wrap{ padding:20px 14px 52px; }
+    header{ margin-bottom:18px; padding:0 2px 16px; }
+    .card{ padding:17px 15px; border-radius:14px; }
+    .controls{ display:grid; grid-template-columns:1.2fr 0.8fr 1fr; gap:8px; }
+    .controls input[type="time"], .set-btn, .preset-btn { width:100%; min-height:42px; }
+    .notif-select{ grid-column:1 / -1; max-width:none; margin:0; width:100%; min-height:42px; }
+    .modal-overlay{ align-items:flex-end; padding:12px; }
+    .modal{
+      max-width:none;
+      max-height:calc(100dvh - 24px);
+      padding:21px 18px calc(18px + env(safe-area-inset-bottom));
+      border-radius:20px;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="toast-flash" id="flashOverlay"></div>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Token Watch</h1>
+      <div class="subhead">Track when your AI tools are back</div>
+    </div>
+    <button class="add-btn" id="openAddBtn">+ Add timer</button>
+  </header>
+
+  <div id="cardList"></div>
+  <div class="empty" id="emptyState" style="display:none;">
+    No custom timers added yet.
+  </div>
+
+  <footer>Timers save automatically in this browser.</footer>
+</div>
+
+<div class="modal-overlay" id="addModal">
+  <div class="modal">
+    <h2>New timer</h2>
+    <div class="field">
+      <label for="nameInput">Name</label>
+      <input type="text" id="nameInput" placeholder="e.g. Custom LLM, meeting" maxlength="40">
+    </div>
+    <div class="field">
+      <label>Icon</label>
+      <div class="icon-grid" id="iconGrid"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" id="cancelAddBtn">Cancel</button>
+      <button class="btn-confirm" id="confirmAddBtn">Add timer</button>
+    </div>
+  </div>
+</div>
+
+<audio id="dingSound" preload="auto">
+  <source src="data:audio/wav;base64,UklGRl9vT19XQVZFZm10IBAAAAABAAEAgLsAAAB3AQACABAAZGF0YQABAAA" type="audio/wav">
+</audio>
+
+<script>
+/* ---------- Storage & Required AI Defaults ---------- */
+const STORAGE_KEY = 'tokenwatch_timers_v2';
+
+const REQUIRED_DEFAULTS = [
+  { id: 'default_chatgpt', name: 'ChatGPT', icon: '🤖', targetTime: null, notif: 'both', notified: false, createdSpan: null, locked: true },
+  { id: 'default_claude', name: 'Claude', icon: '🧠', targetTime: null, notif: 'both', notified: false, createdSpan: null, locked: true },
+  { id: 'default_gemini', name: 'Gemini', icon: '💬', targetTime: null, notif: 'both', notified: false, createdSpan: null, locked: true }
+];
+
+function loadTimers(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    let userTimers = raw ? JSON.parse(raw) : [];
+    
+    // Ensure ChatGPT, Claude, and Gemini are always present and updated if missing
+    REQUIRED_DEFAULTS.forEach(def => {
+      const existingIndex = userTimers.findIndex(t => t.id === def.id || t.name.toLowerCase() === def.name.toLowerCase());
+      if(existingIndex === -1){
+        userTimers.unshift(def);
+      } else {
+        // Ensure properties like 'locked' are enforced on core items
+        userTimers[existingIndex].locked = true;
+      }
+    });
+    return userTimers;
+  }catch(e){ return [...REQUIRED_DEFAULTS]; }
+}
+
+function saveTimers(timers){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(timers));
+}
+
+let timers = loadTimers();
+
+/* ---------- Icon options for custom timers ---------- */
+const ICONS = ['🤖','💬','🧠','⚙️','⏰','📅','✅','🔧','💡','📞','✉️','🎯','🔥','⚡','🛠️','📌'];
+let selectedIcon = ICONS[3];
+
+const iconGrid = document.getElementById('iconGrid');
+ICONS.forEach(ic => {
+  const el = document.createElement('div');
+  el.className = 'icon-choice' + (ic === selectedIcon ? ' selected' : '');
+  el.textContent = ic;
+  el.addEventListener('click', () => {
+    selectedIcon = ic;
+    document.querySelectorAll('.icon-choice').forEach(c => c.classList.remove('selected'));
+    el.classList.add('selected');
+  });
+  iconGrid.appendChild(el);
+});
+
+/* ---------- Modal open/close ---------- */
+const addModal = document.getElementById('addModal');
+document.getElementById('openAddBtn').addEventListener('click', () => {
+  document.getElementById('nameInput').value = '';
+  selectedIcon = ICONS[3];
+  document.querySelectorAll('.icon-choice').forEach((c,i) => c.classList.toggle('selected', i===3));
+  addModal.classList.add('open');
+  document.getElementById('nameInput').focus();
+});
+document.getElementById('cancelAddBtn').addEventListener('click', () => addModal.classList.remove('open'));
+addModal.addEventListener('click', (e) => { if(e.target === addModal) addModal.classList.remove('open'); });
+
+document.getElementById('confirmAddBtn').addEventListener('click', () => {
+  const name = document.getElementById('nameInput').value.trim();
+  if(!name) return;
+  const timer = {
+    id: 't' + Date.now(),
+    name,
+    icon: selectedIcon,
+    targetTime: null,
+    notif: 'both',
+    notified: false,
+    createdSpan: null,
+    locked: false
+  };
+  timers.push(timer);
+  saveTimers(timers);
+  addModal.classList.remove('open');
+  render();
+});
+
+/* ---------- Time helpers ---------- */
+function formatCountdown(ms){
+  if(ms <= 0) return "0:00:00";
+  const totalSec = Math.floor(ms/1000);
+  const h = Math.floor(totalSec/3600);
+  const m = Math.floor((totalSec%3600)/60);
+  const s = totalSec%60;
+  return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+function nextOccurrence(hh, mm){
+  const now = new Date();
+  const target = new Date();
+  target.setHours(hh, mm, 0, 0);
+  if(target.getTime() <= now.getTime()){
+    target.setDate(target.getDate()+1);
+  }
+  return target.getTime();
+}
+
+/* ---------- Rendering ---------- */
+const cardList = document.getElementById('cardList');
+const emptyState = document.getElementById('emptyState');
+
+function render(){
+  cardList.innerHTML = '';
+  
+  timers.forEach(timer => {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.dataset.id = timer.id;
+
+    const now = Date.now();
+    const hasTarget = timer.targetTime !== null;
+    const remaining = hasTarget ? timer.targetTime - now : 0;
+    const isReady = hasTarget && remaining <= 0;
+    const isWaiting = hasTarget && remaining > 0;
+
+    if(isReady) card.classList.add('is-ready');
+    if(isWaiting) card.classList.add('is-waiting');
+
+    const rowTop = document.createElement('div');
+    rowTop.className = 'row-top';
+
+    const idBlock = document.createElement('div');
+    idBlock.className = 'id-block';
+    idBlock.innerHTML = `
+      <span class="icon">${timer.icon}</span>
+      <div class="name-block">
+        <div class="name">${escapeHtml(timer.name)}</div>
+        <div class="status-label ${isReady ? 'ready' : isWaiting ? 'waiting' : ''}">
+          ${isReady ? 'Ready' : isWaiting ? 'Counting down' : 'No time set'}
+        </div>
+      </div>
+    `;
+
+    const rightBlock = document.createElement('div');
+    rightBlock.style.display = 'flex';
+    rightBlock.style.alignItems = 'center';
+    rightBlock.style.gap = '8px';
+
+    const countdownEl = document.createElement('div');
+    countdownEl.className = 'countdown ' + (isReady ? 'ready' : isWaiting ? 'waiting' : '');
+    countdownEl.textContent = isReady ? 'Ready ✓' : isWaiting ? formatCountdown(remaining) : '—';
+
+    rightBlock.appendChild(countdownEl);
+
+    // Only allow deletion of non-locked / custom timers
+    if(!timer.locked){
+      const removeBtn = document.createElement('button');
+      removeBtn.className = 'icon-btn';
+      removeBtn.title = 'Remove';
+      removeBtn.textContent = '✕';
+      removeBtn.addEventListener('click', () => {
+        timers = timers.filter(t => t.id !== timer.id);
+        saveTimers(timers);
+        render();
+      });
+      rightBlock.appendChild(removeBtn);
+    }
+
+    rowTop.appendChild(idBlock);
+    rowTop.appendChild(rightBlock);
+    card.appendChild(rowTop);
+
+    if(isWaiting && timer.createdSpan){
+      const track = document.createElement('div');
+      track.className = 'progress-track';
+      const fill = document.createElement('div');
+      fill.className = 'progress-fill';
+      const elapsed = timer.createdSpan - remaining;
+      const pct = Math.min(100, Math.max(0, (elapsed / timer.createdSpan) * 100));
+      fill.style.width = pct + '%';
+      track.appendChild(fill);
+      card.appendChild(track);
+    }
+
+    const controls = document.createElement('div');
+    controls.className = 'controls';
+
+    const timeInput = document.createElement('input');
+    timeInput.type = 'time';
+    timeInput.id = 'time-' + timer.id;
+
+    const setBtn = document.createElement('button');
+    setBtn.className = 'set-btn';
+    setBtn.textContent = 'Set';
+    setBtn.addEventListener('click', () => {
+      const val = timeInput.value;
+      if(!val) return;
+      const [hh, mm] = val.split(':').map(Number);
+      const target = nextOccurrence(hh, mm);
+      timer.targetTime = target;
+      timer.createdSpan = target - Date.now();
+      timer.notified = false;
+      saveTimers(timers);
+      render();
+    });
+
+    const clearBtn = document.createElement('button');
+    clearBtn.className = 'preset-btn';
+    clearBtn.textContent = 'Clear';
+    clearBtn.addEventListener('click', () => {
+      timer.targetTime = null;
+      timer.createdSpan = null;
+      timer.notified = false;
+      saveTimers(timers);
+      render();
+    });
+
+    const notifSelect = document.createElement('select');
+    notifSelect.className = 'notif-select';
+    notifSelect.title = 'How to notify you';
+    [
+      ['both', 'Sound + popup'],
+      ['sound', 'Sound only'],
+      ['popup', 'Popup only'],
+      ['silent', 'Silent (visual only)']
+    ].forEach(([val, label]) => {
+      const opt = document.createElement('option');
+      opt.value = val;
+      opt.textContent = label;
+      if(timer.notif === val) opt.selected = true;
+      notifSelect.appendChild(opt);
+    });
+    notifSelect.addEventListener('change', () => {
+      timer.notif = notifSelect.value;
+      saveTimers(timers);
+    });
+
+    controls.appendChild(timeInput);
+    controls.appendChild(setBtn);
+    controls.appendChild(clearBtn);
+    controls.appendChild(notifSelect);
+
+    card.appendChild(controls);
+    cardList.appendChild(card);
+  });
+}
+
+function escapeHtml(str){
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+/* ---------- Notification triggers ---------- */
+function fireNotification(timer){
+  if(timer.notif === 'sound' || timer.notif === 'both'){
+    playDing();
+  }
+  if(timer.notif === 'popup' || timer.notif === 'both'){
+    showBrowserNotification(timer);
+  }
+}
+
+function playDing(){
+  try{
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const o = ctx.createOscillator();
+    const g = ctx.createGain();
+    o.connect(g);
+    g.connect(ctx.destination);
+    o.type = 'sine';
+    o.frequency.value = 880;
+    g.gain.setValueAtTime(0.15, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+    o.start();
+    o.stop(ctx.currentTime + 0.5);
+  }catch(e){}
+}
+
+function showBrowserNotification(timer){
+  if(!('Notification' in window)) return;
+  if(Notification.permission === 'granted'){
+    new Notification('Token Watch', { body: `${timer.name} is ready.` });
+  }
+}
+
+if('Notification' in window && Notification.permission === 'default'){
+  document.getElementById('openAddBtn').addEventListener('click', () => {
+    Notification.requestPermission();
+  }, { once: true });
+}
+
+/* ---------- Tick loop ---------- */
+function tick(){
+  const now = Date.now();
+  let needsRender = false;
+
+  timers.forEach(timer => {
+    if(timer.targetTime !== null && timer.targetTime - now <= 0 && !timer.notified){
+      timer.notified = true;
+      fireNotification(timer);
+      needsRender = true;
+      requestAnimationFrame(() => {
+        const cardEl = document.querySelector(`.card[data-id="${timer.id}"]`);
+        if(cardEl){
+          cardEl.classList.add('pulse');
+          setTimeout(() => cardEl.classList.remove('pulse'), 3000);
+        }
+      });
+    }
+  });
+
+  if(needsRender){
+    saveTimers(timers);
+    render();
+  }else{
+    updateLiveNumbers();
+  }
+}
+
+function updateLiveNumbers(){
+  const now = Date.now();
+  timers.forEach(timer => {
+    if(timer.targetTime === null) return;
+    const remaining = timer.targetTime - now;
+    const cardEl = document.querySelector(`.card[data-id="${timer.id}"]`);
+    if(!cardEl) return;
+    const countdownEl = cardEl.querySelector('.countdown');
+    const fillEl = cardEl.querySelector('.progress-fill');
+    if(remaining > 0){
+      if(countdownEl) countdownEl.textContent = formatCountdown(remaining);
+      if(fillEl && timer.createdSpan){
+        const elapsed = timer.createdSpan - remaining;
+        const pct = Math.min(100, Math.max(0, (elapsed / timer.createdSpan) * 100));
+        fillEl.style.width = pct + '%';
+      }
+    }
+  });
+}
+
+render();
+setInterval(tick, 1000);
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  });
+}
+</script>
+
+</body>
+</html>

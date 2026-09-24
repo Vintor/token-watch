@@ -225,7 +225,8 @@
     border-top:1px solid rgba(255,255,255,.07);
     flex-wrap:wrap;
   }
-  .controls input[type="time"]{
+  .controls input[type="time"],
+  .controls input[type="date"]{
     background:rgba(255,255,255,.045);
     border:1px solid rgba(255,255,255,.1);
     color:var(--text);
@@ -256,6 +257,7 @@
   }
   .set-btn:hover{ background:rgba(255,255,255,.08); color:var(--text); border-color:var(--line-strong); }
 
+  .controls input.bad{ border-color:var(--danger); }
   .notif-select{
     background:rgba(255,255,255,.045);
     border:1px solid rgba(255,255,255,.1);
@@ -414,8 +416,8 @@
     .wrap{ padding:20px 14px 52px; }
     header{ margin-bottom:18px; padding:0 2px 16px; }
     .card{ padding:17px 15px; border-radius:14px; }
-    .controls{ display:grid; grid-template-columns:1.2fr 0.8fr 1fr; gap:8px; }
-    .controls input[type="time"], .set-btn, .preset-btn { width:100%; min-height:42px; }
+    .controls{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .controls input[type="time"], .controls input[type="date"], .set-btn, .preset-btn { width:100%; min-height:42px; }
     .notif-select{ grid-column:1 / -1; max-width:none; margin:0; width:100%; min-height:42px; }
     .modal-overlay{ align-items:flex-end; padding:12px; }
     .modal{
@@ -557,10 +559,13 @@ document.getElementById('confirmAddBtn').addEventListener('click', () => {
 function formatCountdown(ms){
   if(ms <= 0) return "0:00:00";
   const totalSec = Math.floor(ms/1000);
-  const h = Math.floor(totalSec/3600);
+  const d = Math.floor(totalSec/86400);
+  const h = Math.floor((totalSec%86400)/3600);
   const m = Math.floor((totalSec%3600)/60);
   const s = totalSec%60;
-  return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  const hms = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  if(d > 0) return `${d}d ${String(h).padStart(2,'0')}:${hms}`;
+  return `${h}:${hms}`;
 }
 
 function nextOccurrence(hh, mm){
@@ -571,6 +576,18 @@ function nextOccurrence(hh, mm){
     target.setDate(target.getDate()+1);
   }
   return target.getTime();
+}
+
+function todayString(){
+  const n = new Date();
+  return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
+}
+
+function formatTarget(ms){
+  const t = new Date(ms);
+  const day = t.toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric' });
+  const time = t.toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' });
+  return `Back ${day} at ${time}`;
 }
 
 /* ---------- Rendering ---------- */
@@ -604,7 +621,7 @@ function render(){
       <div class="name-block">
         <div class="name">${escapeHtml(timer.name)}</div>
         <div class="status-label ${isReady ? 'ready' : isWaiting ? 'waiting' : ''}">
-          ${isReady ? 'Ready' : isWaiting ? 'Counting down' : 'No time set'}
+          ${isReady ? 'Ready' : isWaiting ? formatTarget(timer.targetTime) : 'No time set'}
         </div>
       </div>
     `;
@@ -653,6 +670,12 @@ function render(){
     const controls = document.createElement('div');
     controls.className = 'controls';
 
+    const dateInput = document.createElement('input');
+    dateInput.type = 'date';
+    dateInput.id = 'date-' + timer.id;
+    dateInput.min = todayString();
+    dateInput.title = 'Day it resets (leave blank for the next time this clock time comes up)';
+
     const timeInput = document.createElement('input');
     timeInput.type = 'time';
     timeInput.id = 'time-' + timer.id;
@@ -662,9 +685,22 @@ function render(){
     setBtn.textContent = 'Set';
     setBtn.addEventListener('click', () => {
       const val = timeInput.value;
-      if(!val) return;
+      dateInput.classList.remove('bad');
+      timeInput.classList.remove('bad');
+      if(!val){ timeInput.classList.add('bad'); return; }
       const [hh, mm] = val.split(':').map(Number);
-      const target = nextOccurrence(hh, mm);
+      let target;
+      if(dateInput.value){
+        const [y, mo, d] = dateInput.value.split('-').map(Number);
+        target = new Date(y, mo-1, d, hh, mm, 0, 0).getTime();
+        if(target <= Date.now()){
+          dateInput.classList.add('bad');
+          timeInput.classList.add('bad');
+          return;
+        }
+      }else{
+        target = nextOccurrence(hh, mm);
+      }
       timer.targetTime = target;
       timer.createdSpan = target - Date.now();
       timer.notified = false;
@@ -703,6 +739,7 @@ function render(){
       saveTimers(timers);
     });
 
+    controls.appendChild(dateInput);
     controls.appendChild(timeInput);
     controls.appendChild(setBtn);
     controls.appendChild(clearBtn);

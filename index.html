@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Token Watch</title>
+<title>AI Timer</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#0b0e13">
 <meta name="mobile-web-app-capable" content="yes">
@@ -225,8 +225,7 @@
     border-top:1px solid rgba(255,255,255,.07);
     flex-wrap:wrap;
   }
-  .controls input[type="time"],
-  .controls input[type="date"]{
+  .controls input[type="time"]{
     background:rgba(255,255,255,.045);
     border:1px solid rgba(255,255,255,.1);
     color:var(--text);
@@ -237,6 +236,16 @@
     color-scheme:dark;
     min-height:38px;
   }
+  .controls input[type="number"], .dur-unit{
+    background:rgba(255,255,255,.045);
+    border:1px solid rgba(255,255,255,.1);
+    color:var(--text);
+    border-radius:9px;
+    padding:7px 10px;
+    font-size:0.8rem;
+    min-height:38px;
+  }
+  .controls input[type="number"]{ width:64px; }
   .preset-btn, .set-btn{
     background:rgba(255,255,255,.045);
     border:1px solid rgba(255,255,255,.1);
@@ -257,7 +266,6 @@
   }
   .set-btn:hover{ background:rgba(255,255,255,.08); color:var(--text); border-color:var(--line-strong); }
 
-  .controls input.bad{ border-color:var(--danger); }
   .notif-select{
     background:rgba(255,255,255,.045);
     border:1px solid rgba(255,255,255,.1);
@@ -416,8 +424,8 @@
     .wrap{ padding:20px 14px 52px; }
     header{ margin-bottom:18px; padding:0 2px 16px; }
     .card{ padding:17px 15px; border-radius:14px; }
-    .controls{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-    .controls input[type="time"], .controls input[type="date"], .set-btn, .preset-btn { width:100%; min-height:42px; }
+    .controls{ display:grid; grid-template-columns:1.2fr 0.8fr 1fr; gap:8px; }
+    .controls input[type="time"], .controls input[type="number"], .dur-unit, .set-btn, .preset-btn { width:100%; min-height:42px; }
     .notif-select{ grid-column:1 / -1; max-width:none; margin:0; width:100%; min-height:42px; }
     .modal-overlay{ align-items:flex-end; padding:12px; }
     .modal{
@@ -559,13 +567,10 @@ document.getElementById('confirmAddBtn').addEventListener('click', () => {
 function formatCountdown(ms){
   if(ms <= 0) return "0:00:00";
   const totalSec = Math.floor(ms/1000);
-  const d = Math.floor(totalSec/86400);
-  const h = Math.floor((totalSec%86400)/3600);
+  const h = Math.floor(totalSec/3600);
   const m = Math.floor((totalSec%3600)/60);
   const s = totalSec%60;
-  const hms = `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-  if(d > 0) return `${d}d ${String(h).padStart(2,'0')}:${hms}`;
-  return `${h}:${hms}`;
+  return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
 }
 
 function nextOccurrence(hh, mm){
@@ -576,18 +581,6 @@ function nextOccurrence(hh, mm){
     target.setDate(target.getDate()+1);
   }
   return target.getTime();
-}
-
-function todayString(){
-  const n = new Date();
-  return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`;
-}
-
-function formatTarget(ms){
-  const t = new Date(ms);
-  const day = t.toLocaleDateString(undefined, { weekday:'short', month:'short', day:'numeric' });
-  const time = t.toLocaleTimeString(undefined, { hour:'numeric', minute:'2-digit' });
-  return `Back ${day} at ${time}`;
 }
 
 /* ---------- Rendering ---------- */
@@ -621,7 +614,7 @@ function render(){
       <div class="name-block">
         <div class="name">${escapeHtml(timer.name)}</div>
         <div class="status-label ${isReady ? 'ready' : isWaiting ? 'waiting' : ''}">
-          ${isReady ? 'Ready' : isWaiting ? formatTarget(timer.targetTime) : 'No time set'}
+          ${isReady ? 'Ready' : isWaiting ? 'Counting down' : 'No time set'}
         </div>
       </div>
     `;
@@ -670,12 +663,6 @@ function render(){
     const controls = document.createElement('div');
     controls.className = 'controls';
 
-    const dateInput = document.createElement('input');
-    dateInput.type = 'date';
-    dateInput.id = 'date-' + timer.id;
-    dateInput.min = todayString();
-    dateInput.title = 'Day it resets (leave blank for the next time this clock time comes up)';
-
     const timeInput = document.createElement('input');
     timeInput.type = 'time';
     timeInput.id = 'time-' + timer.id;
@@ -685,28 +672,46 @@ function render(){
     setBtn.textContent = 'Set';
     setBtn.addEventListener('click', () => {
       const val = timeInput.value;
-      dateInput.classList.remove('bad');
-      timeInput.classList.remove('bad');
-      if(!val){ timeInput.classList.add('bad'); return; }
+      if(!val) return;
       const [hh, mm] = val.split(':').map(Number);
-      let target;
-      if(dateInput.value){
-        const [y, mo, d] = dateInput.value.split('-').map(Number);
-        target = new Date(y, mo-1, d, hh, mm, 0, 0).getTime();
-        if(target <= Date.now()){
-          dateInput.classList.add('bad');
-          timeInput.classList.add('bad');
-          return;
-        }
-      }else{
-        target = nextOccurrence(hh, mm);
-      }
+      const target = nextOccurrence(hh, mm);
       timer.targetTime = target;
       timer.createdSpan = target - Date.now();
       timer.notified = false;
       saveTimers(timers);
       render();
     });
+
+    // Wait a set amount: type a number, pick minutes or hours, press Start
+    const durInput = document.createElement('input');
+    durInput.type = 'number';
+    durInput.min = '1';
+    durInput.placeholder = '#';
+    durInput.title = 'How long to wait';
+
+    const durUnit = document.createElement('select');
+    durUnit.className = 'dur-unit';
+    [['60000','min'],['3600000','hr']].forEach(([val, label]) => {
+      const opt = document.createElement('option');
+      opt.value = val;
+      opt.textContent = label;
+      durUnit.appendChild(opt);
+    });
+
+    const startBtn = document.createElement('button');
+    startBtn.className = 'set-btn';
+    startBtn.textContent = 'Start';
+    startBtn.addEventListener('click', () => {
+      const amount = parseFloat(durInput.value);
+      if(!amount || amount <= 0) return;
+      const span = amount * Number(durUnit.value);
+      timer.targetTime = Date.now() + span;
+      timer.createdSpan = span;
+      timer.notified = false;
+      saveTimers(timers);
+      render();
+    });
+    durInput.addEventListener('keydown', (e) => { if(e.key === 'Enter') startBtn.click(); });
 
     const clearBtn = document.createElement('button');
     clearBtn.className = 'preset-btn';
@@ -739,10 +744,12 @@ function render(){
       saveTimers(timers);
     });
 
-    controls.appendChild(dateInput);
     controls.appendChild(timeInput);
     controls.appendChild(setBtn);
     controls.appendChild(clearBtn);
+    controls.appendChild(durInput);
+    controls.appendChild(durUnit);
+    controls.appendChild(startBtn);
     controls.appendChild(notifSelect);
 
     card.appendChild(controls);
@@ -821,6 +828,21 @@ function tick(){
   }else{
     updateLiveNumbers();
   }
+  updateTabTitle();
+}
+
+/* ---------- Tab title: show the soonest running countdown ---------- */
+const BASE_TITLE = 'AI Timer';
+function updateTabTitle(){
+  const now = Date.now();
+  let soonest = null;
+  timers.forEach(timer => {
+    if(timer.targetTime === null || timer.targetTime - now <= 0) return;
+    if(!soonest || timer.targetTime < soonest.targetTime) soonest = timer;
+  });
+  document.title = soonest
+    ? `${formatCountdown(soonest.targetTime - now)} ${soonest.name} - ${BASE_TITLE}`
+    : BASE_TITLE;
 }
 
 function updateLiveNumbers(){
@@ -844,6 +866,7 @@ function updateLiveNumbers(){
 }
 
 render();
+updateTabTitle();
 setInterval(tick, 1000);
 
 if('serviceWorker' in navigator){
